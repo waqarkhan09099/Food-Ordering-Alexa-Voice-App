@@ -94,23 +94,55 @@ const OrderDrinkandDishesIntentHandler = {
     const drinks = slots.drink.value;
     const foods = slots.food.value;
     let orderspeek = "";
-    
-    if (drinks === undefined) {
-      orderspeek = `Thank you for ordering ${drinks === undefined ? foods : drinks}`
 
-    } 
-    else if (drinks && foods) {
-      orderspeek = `ordering ${drinks} ${foods === "thanks" ? "," : " and"} ${foods === "thanks" ? ', thank you so much.' : foods + ', thank you so much for ordering'}`
+    try {
+      const { serviceClientFactory, responseBuilder } = handlerInput
+      const apiAccessToken = Alexa.getApiAccessToken(handlerInput.requestEnvelope)
+      console.log("Access Token: ", apiAccessToken)
+      const responceArray = await Promise.all([
+        axios.get("https://api.amazonalexa.com/v2/accounts/~current/settings/Profile.email", {
+          headers: { Authorization: `Bearer ${apiAccessToken}` }
+        }),
+        axios.get("https://api.amazonalexa.com/v2/accounts/~current/settings/Profile.name",
+          { headers: { Authorization: `Bearer ${apiAccessToken}` } },
+        )
+        
+      ])
+      const email = responceArray[0].data;
+      const name = responceArray[1].data;
+      // const upsServiceClient = handlerInput.serviceClientFactory.getUpsServiceClient()
+      // const userEmail = await upsServiceClient.getProfileEmail()
+      // console.log("userEmail")
+      // console.log("userName")
+      if (!email) {
+        return handlerInput.responseBuilder
+          .speak(`looks like you dont have an email associated with this device, please set your email in Alexa App Settings`)
+          .getResponse();
+      } else {
+        if (drinks === undefined) {
+          orderspeek = `Thank you for ordering ${drinks === undefined ? foods : drinks}`
+
+        }
+        else if (drinks && foods) {
+          orderspeek = `ordering ${drinks} ${foods === "thanks" ? "," : " and"} ${foods === "thanks" ? ', thank you so much.' : foods + ', thank you so much for ordering'}`
+        }
+        let orderItems = new Items({
+          dish: { item: foods, quantity: 1 },
+          drink: { item: drinks, quantity: 1 }
+        }).save()
+
+        return handlerInput.responseBuilder
+          .speak(orderspeek)
+          .reprompt(orderspeek)
+          .getResponse();
+      }
+
+    } catch (error) {
+      console.log(error)
+      return responseBuilder
+        .speak('Uh Oh. Looks like something went wrong.')
+        .getResponse();
     }
-    let orderItems = new Items({
-      dish: { item: foods, quantity: 1 },
-      drink: { item: drinks, quantity: 1 }
-    }).save()
-
-    return handlerInput.responseBuilder
-      .speak(orderspeek)
-      .reprompt(orderspeek)
-      .getResponse();
 
   }
 };
@@ -126,6 +158,7 @@ const userEmailHandler = {
     const apiAccessToken = Alexa.getApiAccessToken(handlerInput.requestEnvelope)
     console.log("Access Token: ", apiAccessToken)
     try {
+      // that's a first way to defined user info by api call
       const responceArray = await Promise.all([
         axios.get("https://api.amazonalexa.com/v2/accounts/~current/settings/Profile.email", {
           headers: { Authorization: `Bearer ${apiAccessToken}` }
@@ -202,6 +235,7 @@ const LaunchRequestHandler = {
     return Alexa.getRequestType(handlerInput.requestEnvelope) === 'LaunchRequest';
   },
   handle(handlerInput) {
+    
 
     let newUsage = new Usage({
       skillName: 'wiki restaurant',
