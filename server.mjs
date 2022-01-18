@@ -23,6 +23,16 @@ const Items = mongoose.model("Items", {
 
 })
 
+const Cart=mongoose.model("Cart",{
+  items:[{
+    dishName:String,
+    quantity:Number
+  }],
+  email:String,
+  customerName:String,
+  createdOn:{type:Date,default:Date.now},
+})
+
 const app = express();
 app.use(morgan("dev"))
 const PORT = process.env.PORT || 3000;
@@ -95,6 +105,8 @@ const OrderDrinkandDishesIntentHandler = {
     const foods = slots.food.value;
     let orderspeek = "";
 
+
+
     try {
       const { serviceClientFactory, responseBuilder } = handlerInput
       const apiAccessToken = Alexa.getApiAccessToken(handlerInput.requestEnvelope)
@@ -118,7 +130,13 @@ const OrderDrinkandDishesIntentHandler = {
         return handlerInput.responseBuilder
           .speak(`looks like you dont have an email associated with this device, please set your email in Alexa App Settings`)
           .getResponse();
-      } else {
+      } 
+      else if (!name) {
+        return handlerInput.responseBuilder
+          .speak(`looks like you dont have an name associated with this device, please set your name in Alexa App Settings`)
+          .getResponse();
+      } 
+      else {
         if (drinks === undefined) {
           orderspeek = `Thank you for ordering ${drinks === undefined ? foods : drinks}`
 
@@ -148,54 +166,6 @@ const OrderDrinkandDishesIntentHandler = {
 };
 
 
-const userEmailHandler = {
-  canHandle(handlerInput) {
-    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
-      && Alexa.getIntentName(handlerInput.requestEnvelope) === 'EmailIntent'
-  },
-  async handle(handlerInput) {
-    const { serviceClientFactory, responseBuilder } = handlerInput
-    const apiAccessToken = Alexa.getApiAccessToken(handlerInput.requestEnvelope)
-    console.log("Access Token: ", apiAccessToken)
-    try {
-      // that's a first way to defined user info by api call
-      const responceArray = await Promise.all([
-        axios.get("https://api.amazonalexa.com/v2/accounts/~current/settings/Profile.email", {
-          headers: { Authorization: `Bearer ${apiAccessToken}` }
-        }),
-        axios.get("https://api.amazonalexa.com/v2/accounts/~current/settings/Profile.name",
-          { headers: { Authorization: `Bearer ${apiAccessToken}` } },
-        )
-        // second method is dont call api and use axios just use serviceClientFactory
-        // const upsServiceClient = serviceClientFactory.getUpsServiceClient()
-        // const profileEmail = await upsServiceClient.getProfileEmail()
-      ])
-      const email = responceArray[0].data;
-      const name = responceArray[1].data;
-      if (!email) {
-        return handlerInput.responseBuilder
-          .speak(`looks like you dont have an email associated with this device, please set your email in Alexa App Settings`)
-          .getResponse();
-      }
-      return handlerInput.responseBuilder
-        .speak(`Dear ${name}, your email is: ${email}`)
-        .getResponse();
-    }
-    catch (error) {
-      console.log("error code: ", error.response.status);
-
-      if (error.response.status === 403) {
-        return responseBuilder
-          .speak('I am Unable to read your email. Please goto Alexa app and then goto Wiki Tech Skill is for Wiki restaurant and Grant Profile Permissions to this skill')
-          .withAskForPermissionsConsentCard(["alexa::profile:email:read"]) // https://developer.amazon.com/en-US/docs/alexa/custom-skills/request-customer-contact-information-for-use-in-your-skill.html#sample-response-with-permissions-card
-          .getResponse();
-      }
-      return responseBuilder
-        .speak('Uh Oh. Looks like something went wrong.')
-        .getResponse();
-    }
-  }
-}
 
 
 
@@ -235,7 +205,6 @@ const LaunchRequestHandler = {
     return Alexa.getRequestType(handlerInput.requestEnvelope) === 'LaunchRequest';
   },
   handle(handlerInput) {
-    
 
     let newUsage = new Usage({
       skillName: 'wiki restaurant',
@@ -243,8 +212,8 @@ const LaunchRequestHandler = {
     }).save()
     return handlerInput.responseBuilder
       .speak(script.launch[0])
-      .reprompt("I am your virtual assistant. you can ask for the menu")
-      .withSimpleCard("Wiki Restraurant", script.launch[0])
+      .reprompt(script.launch[0])
+      .withSimpleCard("Wiki Restraurant", script.launch[1])
       .getResponse();
   }
 };
@@ -262,22 +231,156 @@ const HelloWorldIntentHandler = {
   }
 };
 
+const DrinkMenuIntentHandler = {
+  canHandle(handlerInput) {
+    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+      && Alexa.getIntentName(handlerInput.requestEnvelope) === 'DrinksIntent';
+  },
+  handle(handlerInput) {
+
+    return handlerInput.responseBuilder
+      .speak(script.drinksMenu[0])
+      .reprompt(script.drinksMenu[0])
+      .withSimpleCard("Wiki Restaurant (Drinks Menu)\n",script.drinksMenu[1])
+      .getResponse();
+  }
+};
+const PastaMenuIntentHandler = {
+  canHandle(handlerInput) {
+    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+      && Alexa.getIntentName(handlerInput.requestEnvelope) === 'PastaCornerIntent';
+  },
+  handle(handlerInput) {
+
+    return handlerInput.responseBuilder
+      .speak(script.pastaMenu[0])
+      .reprompt(script.pastaMenu[0])
+      .withSimpleCard("Wiki Restaurant (Pasta Menu)\n",script.pastaMenu[1])
+      .getResponse();
+  }
+};
+const FishCornerMenuIntentHandler = {
+  canHandle(handlerInput) {
+    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+      && Alexa.getIntentName(handlerInput.requestEnvelope) === 'FishCornerIntent';
+  },
+  handle(handlerInput) {
+
+    return handlerInput.responseBuilder
+      .speak(script.fishMenu[0])
+      .reprompt(script.fishMenu[0])
+      .withSimpleCard("Wiki Restaurant (Fish Corner Menu)\n",script.fishMenu[1])
+      .getResponse();
+  }
+};
+const PakistaniBreadMenuIntentHandler = {
+  canHandle(handlerInput) {
+    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+      && Alexa.getIntentName(handlerInput.requestEnvelope) === 'PakistaniBreadIntent';
+  },
+  handle(handlerInput) {
+
+    return handlerInput.responseBuilder
+      .speak(script.pakistaniBreadMenu[0])
+      .reprompt(script.pakistaniBreadMenu[0])
+      .withSimpleCard("Wiki Restaurant (Pakistani Bread Menu)\n",script.pakistaniBreadMenu[1])
+      .getResponse();
+  }
+};
+const RiceCornerMenuIntentHandler = {
+  canHandle(handlerInput) {
+    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+      && Alexa.getIntentName(handlerInput.requestEnvelope) === 'RiceCornerIntent';
+  },
+  handle(handlerInput) {
+
+    return handlerInput.responseBuilder
+      .speak(script.riceMenu[0])
+      .reprompt(script.riceMenu[0])
+      .withSimpleCard("Wiki Restaurant (Rise Corner Menu)\n",script.riceMenu[1])
+      .getResponse();
+  }
+};
+const FastFoodMenuIntentHandler = {
+  canHandle(handlerInput) {
+    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+      && Alexa.getIntentName(handlerInput.requestEnvelope) === 'FastFoodIntent';
+  },
+  handle(handlerInput) {
+
+    return handlerInput.responseBuilder
+      .speak(script.fastFoodMenu[0])
+      .reprompt(script.fastFoodMenu[0])
+      .withSimpleCard("Wiki Restaurant (Fast Food Menu)\n",script.fastFoodMenu[1])
+      .getResponse();
+  }
+};
 const ShowMenuIntentHandler = {
   canHandle(handlerInput) {
     return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
       && Alexa.getIntentName(handlerInput.requestEnvelope) === 'ShowMenuIntent';
   },
   handle(handlerInput) {
-    const menu = ['zinger burgur', 'fries', 'pizza', 'doritos', 'lazania', 'gola kabab']
-    const totalmenu = menu.map(data => data)
 
     return handlerInput.responseBuilder
-      .speak(`our menu have ${totalmenu}`)
-      .reprompt(`our menu have ${totalmenu}`)
-      //.reprompt('add a reprompt if you want to keep the session open for the user to respond')
+      .speak(script.menuCategory[0])
+      .reprompt(script.menuCategory[0])
+      .withSimpleCard("Wiki Restaurant (menu category)\n",script.menuCategory[1])
       .getResponse();
   }
 };
+
+
+const userEmailHandler = {
+  canHandle(handlerInput) {
+    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+      && Alexa.getIntentName(handlerInput.requestEnvelope) === 'EmailIntent'
+  },
+  async handle(handlerInput) {
+    const { serviceClientFactory, responseBuilder } = handlerInput
+    const apiAccessToken = Alexa.getApiAccessToken(handlerInput.requestEnvelope)
+    console.log("Access Token: ", apiAccessToken)
+    try {
+      // that's a first way to defined user info by api call
+      const responceArray = await Promise.all([
+        axios.get("https://api.amazonalexa.com/v2/accounts/~current/settings/Profile.email", {
+          headers: { Authorization: `Bearer ${apiAccessToken}` }
+        }),
+        axios.get("https://api.amazonalexa.com/v2/accounts/~current/settings/Profile.name",
+          { headers: { Authorization: `Bearer ${apiAccessToken}` } },
+        )
+      ])
+      // second method is dont call api and use axios just use serviceClientFactory
+      // const upsServiceClient = serviceClientFactory.getUpsServiceClient()
+      // const profileEmail = await upsServiceClient.getProfileEmail()
+      // const profileName = await upsServiceClient.getProfileName()
+      // console.log(profileName)
+      const email = responceArray[0].data;
+      const name = responceArray[1].data;
+      if (!email) {
+        return handlerInput.responseBuilder
+          .speak(`looks like you dont have an email associated with this device, please set your email in Alexa App Settings`)
+          .getResponse();
+      }
+      return handlerInput.responseBuilder
+        .speak(`Dear ${name}, your email is: ${email}`)
+        .getResponse();
+    }
+    catch (error) {
+      console.log("error code: ", error.response.status);
+
+      if (error.response.status === 403) {
+        return responseBuilder
+          .speak('I am Unable to read your email. Please goto Alexa app and then goto Wiki Tech Skill is for Wiki restaurant and Grant Profile Permissions to this skill')
+          .withAskForPermissionsConsentCard(["alexa::profile:email:read"]) // https://developer.amazon.com/en-US/docs/alexa/custom-skills/request-customer-contact-information-for-use-in-your-skill.html#sample-response-with-permissions-card
+          .getResponse();
+      }
+      return responseBuilder
+        .speak('Uh Oh. Looks like something went wrong.')
+        .getResponse();
+    }
+  }
+}
 
 const deviceIdHandler = {
   canHandle(handlerInput) {
@@ -301,6 +404,12 @@ const deviceIdHandler = {
 
 const skillBuilder = SkillBuilders.custom()
   .addRequestHandlers(
+    DrinkMenuIntentHandler,
+    PastaMenuIntentHandler,
+    FishCornerMenuIntentHandler,
+    PakistaniBreadMenuIntentHandler,
+    RiceCornerMenuIntentHandler,
+    FastFoodMenuIntentHandler,
     OrderDrinkandDishesIntentHandler,
     WeatherIntentHandler,
     LaunchRequestHandler,
@@ -310,9 +419,10 @@ const skillBuilder = SkillBuilders.custom()
     ShowMenuIntentHandler,
     IntentReflectorHandler,
   )
-  .addErrorHandlers(
-    ErrorHandler
-  )
+  .addErrorHandlers(ErrorHandler)  
+  
+
+
 const skill = skillBuilder.create();
 const adapter = new ExpressAdapter(skill, false, false);
 
