@@ -33,8 +33,8 @@ const Cart = mongoose.model('Cart', {
 const OrderModel = mongoose.model('Order', {
   items: [{
     dishesName: String,
-    dishesquantity: Number,
-    drinkesquantity: Number,
+    dishesQuantity: Number,
+    drinksQuantity: Number,
     drinksName: String
   }],
   email: String,
@@ -328,7 +328,7 @@ const CheckoutIntentHandler = {
       const dishesQuantity=userCart.items[userCart.items.length-1].dishesQuantity
       const drinksQuantity=userCart.items[userCart.items.length-1].drinksQuantity
       console.log(drinksQuantity);
-      console.log(drinksQuantity);
+      console.log(dishesQuantity);
       if (!email) {
         return handlerInput.responseBuilder
           .speak(script.clientInfo[0])
