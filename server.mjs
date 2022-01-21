@@ -16,27 +16,55 @@ const Usage = mongoose.model("Usage", {
 
 })
 
-const Items = mongoose.model("Items", {
-  dish: { item: String, quantity: Number },
-  drink: { item: String, quantity: Number },
-  createdOn: { type: Date, default: Date.now }
 
-})
+const Cart = mongoose.model('Cart', {
+  items: [{
+    dishesName: String,
+    dishesQuantity: Number,
+    drinksQuantity: Number,
+    drinksName: String,
 
-const Cart=mongoose.model("Cart",{
-  items:[{
-    dishName:String,
-    quantity:Number
   }],
-  email:String,
-  customerName:String,
-  createdOn:{type:Date,default:Date.now},
-})
+  email: String,
+  customerName: String,
+  createdOn: { type: Date, default: Date.now },
+});
+
+const OrderModel = mongoose.model('Order', {
+  items: [{
+    dishesName: String,
+    dishesquantity: Number,
+    drinkesquantity: Number,
+    drinksName: String
+  }],
+  email: String,
+  customerName: String,
+  createdOn: { type: Date, default: Date.now },
+});
 
 const app = express();
 app.use(morgan("dev"))
 const PORT = process.env.PORT || 3000;
 
+
+
+const LaunchRequestHandler = {
+  canHandle(handlerInput) {
+    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'LaunchRequest';
+  },
+  handle(handlerInput) {
+
+    let newUsage = new Usage({
+      skillName: 'wiki restaurant',
+      clientName: "waqar khan"
+    }).save()
+    return handlerInput.responseBuilder
+      .speak(script.launch[0])
+      .reprompt(script.launch[0])
+      .withSimpleCard("Wiki Restraurant", script.launch[1])
+      .getResponse();
+  }
+};
 
 let weatherinfo = '';
 
@@ -94,23 +122,33 @@ const WeatherIntentHandler = {
   }
 };
 
+/////////////////////////////// Order Intent  /////////////////////////////
+
 const OrderDrinkandDishesIntentHandler = {
   canHandle(handlerInput) {
     return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
-      && Alexa.getIntentName(handlerInput.requestEnvelope) === 'OrderDrinkandDishesIntent';
+      && Alexa.getIntentName(handlerInput.requestEnvelope) === 'SelectionIntent';
   },
   async handle(handlerInput) {
     const slots = handlerInput.requestEnvelope.request.intent.slots;
-    const drinks = slots.drink.value;
     const foods = slots.food.value;
-    let orderspeek = "";
+    console.log(foods);
+    const drinks = slots.drink.value;
+    console.log(drinks);
+
+    let dishesQuantity = slots.dishesQuantity.value === undefined ? 1 : Number(slots.dishesQuantity.value);
+    let drinksQuantity = slots.drinksQuantity.value === undefined ? 1 : Number(slots.drinksQuantity.value);
+    console.log(dishesQuantity);
+    console.log(drinksQuantity);
+    const { serviceClientFactory, responseBuilder } = handlerInput
+    const apiAccessToken = Alexa.getApiAccessToken(handlerInput.requestEnvelope)
+    // console.log("Access Token: ", apiAccessToken)
+
+
 
 
 
     try {
-      const { serviceClientFactory, responseBuilder } = handlerInput
-      const apiAccessToken = Alexa.getApiAccessToken(handlerInput.requestEnvelope)
-      console.log("Access Token: ", apiAccessToken)
       const responceArray = await Promise.all([
         axios.get("https://api.amazonalexa.com/v2/accounts/~current/settings/Profile.email", {
           headers: { Authorization: `Bearer ${apiAccessToken}` }
@@ -118,7 +156,7 @@ const OrderDrinkandDishesIntentHandler = {
         axios.get("https://api.amazonalexa.com/v2/accounts/~current/settings/Profile.name",
           { headers: { Authorization: `Bearer ${apiAccessToken}` } },
         )
-        
+
       ])
       const email = responceArray[0].data;
       const name = responceArray[1].data;
@@ -128,44 +166,305 @@ const OrderDrinkandDishesIntentHandler = {
       // console.log("userName")
       if (!email) {
         return handlerInput.responseBuilder
-          .speak(`looks like you dont have an email associated with this device, please set your email in Alexa App Settings`)
+          .speak(script.clientInfo[0])
+          .reprompt(script.clientInfo[0])
+          .withSimpleCard('Email not Found', script.clientInfo[0])
           .getResponse();
-      } 
-      else if (!name) {
+      }
+      if (!name) {
         return handlerInput.responseBuilder
-          .speak(`looks like you dont have an name associated with this device, please set your name in Alexa App Settings`)
-          .getResponse();
-      } 
-      else {
-        if (drinks === undefined) {
-          orderspeek = `Thank you for ordering ${drinks === undefined ? foods : drinks}`
-
-        }
-        else if (drinks && foods) {
-          orderspeek = `ordering ${drinks} ${foods === "thanks" ? "," : " and"} ${foods === "thanks" ? ', thank you so much.' : foods + ', thank you so much for ordering'}`
-        }
-        let orderItems = new Items({
-          dish: { item: foods, quantity: 1 },
-          drink: { item: drinks, quantity: 1 }
-        }).save()
-
-        return handlerInput.responseBuilder
-          .speak(orderspeek)
-          .reprompt(orderspeek)
+          .speak(script.clientInfo[1])
+          .reprompt(script.clientInfo[1])
+          .withSimpleCard('Name not Found', script.clientInfo[1])
           .getResponse();
       }
 
+
+      if (foods && drinks) {
+        let updated = await Cart.findOneAndUpdate(
+          { email: email },
+          {
+            email: email,
+            customerName: name,
+            $push: {
+              items: [{
+                dishesName: foods,
+                dishesQuantity,
+                drinksName: drinks,
+                drinksQuantity,
+              }]
+            }
+          },
+          { upsert: true }).exec();
+
+      }
+
+      else if (foods) {
+        let updated = await Cart.findOneAndUpdate(
+          { email: email },
+          {
+            email: email,
+            customerName: name,
+            $push: {
+              items: [{
+                dishesName: foods,
+                dishesQuantity
+              }]
+            }
+          },
+          { upsert: true }).exec();
+
+      } else {
+
+        let updated = await Cart.findOneAndUpdate(
+          { email: email },
+          {
+            email: email,
+            customerName: name,
+            $push: {
+              items: [{
+                drinksName: drinks,
+                drinksQuantity
+              }]
+            }
+          },
+          { upsert: true }).exec();
+
+      }
+
+      try {
+        if (drinks && foods) {
+          return handlerInput.responseBuilder
+            .speak(`your selection is ${drinksQuantity} ${drinks} and ${dishesQuantity} ${foods} ,<break time="150ms" /> for confirm the order <break time="150ms" /> say, <s> Order confirm.</s>`)
+            .reprompt(`your selection is ${drinksQuantity} ${drinks} and ${dishesQuantity} ${foods} ,<break time="150ms" /> for confirm the order <break time="150ms" /> say, <s> Order confirm.</s>`)
+            .withSimpleCard(`Order Card \nyour selection is ${drinksQuantity} ${drinks} and ${dishesQuantity} ${foods}, for confirm the order say, Order confirm.`)
+            .getResponse();
+        }
+        else if (foods) {
+          return handlerInput.responseBuilder
+            .speak(`your selection is ${dishesQuantity} ${foods},<break time="150ms" /> for confirm your order <break time="150ms" /> say, <s> order confirm.</s>`,)
+            .reprompt(`your selection is ${dishesQuantity} ${foods},<break time="150ms" /> for confirm your order <break time="150ms" /> say, <s> order confirm.</s>`,)
+            .withSimpleCard(`Order Card \nyour selection is ${dishesQuantity} ${foods}, for confirm your order say, Order confirm.`)
+            .getResponse();
+        }
+        else if (drinks) {
+          return handlerInput.responseBuilder
+            .speak(`your selection is ${drinksQuantity} ${drinks},<break time="150ms" /> for confirm the order <break time="150ms" /> say, <s> Order confirm.</s>`)
+            .reprompt(`your selection is ${drinksQuantity} ${drinks},<break time="150ms" /> for confirm the order <break time="150ms" /> say, <s> Order confirm.</s>`)
+            .withSimpleCard(`Order Card \nyour selection is ${drinksQuantity} ${drinks}, for confirm the order say, Order confirm.`)
+            .getResponse();
+        }
+
+        if (!foods) {
+          return handlerInput.responseBuilder
+            .speak(script.foodSlotMissing[0])
+            .reprompt(script.foodSlotMissing[0])
+            .withSimpleCard("Dishe Not Found", script.foodSlotMissing[1])
+            .getResponse();
+        }
+
+        if (!drinks) {
+          return handlerInput.responseBuilder
+            .speak(script.drinkSlotMissing[0])
+            .reprompt(script.drinkSlotMissing[0])
+            .withSimpleCard("Dishe Not Found", script.foodSlotMissing[1])
+            .getResponse();
+        }
+
+
+      } catch (error) {
+        console.log(error)
+        return responseBuilder
+          .speak('Uh Oh. Im not get your dishes, please feel free to order again')
+          .reprompt('Uh Oh. Im not get your dishes, please feel free to order again')
+          .withSimpleCard('Uh Oh. Im not get your dishes, please feel free to order again')
+          .getResponse();
+      }
+      
     } catch (error) {
       console.log(error)
       return responseBuilder
-        .speak('Uh Oh. Looks like something went wrong.')
+        .speak('Uh Oh. Im not get your dishes, please feel free to order again')
+        .reprompt('Uh Oh. Im not get your dishes, please feel free to order again')
+        .withSimpleCard('Uh Oh. Im not get your dishes, please feel free to order again')
         .getResponse();
     }
 
   }
 };
 
+//////////////////////check out intent////////////////
 
+
+const CheckoutIntentHandler = {
+  canHandle(handlerInput) {
+    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+      && Alexa.getIntentName(handlerInput.requestEnvelope) === 'CheckoutIntent';
+  },
+  async handle(handlerInput) {
+    const slots = handlerInput.requestEnvelope.request.intent.slots;
+    const cancelOrder = slots.CancelOrder.value;
+    // const { serviceClientFactory, responseBuilder } = handlerInput
+    const apiAccessToken = Alexa.getApiAccessToken(handlerInput.requestEnvelope)
+    
+    // const confirmedOrder = new OrderModel.$push(Cart)
+    try {
+      const responceArray = await Promise.all([
+        axios.get("https://api.amazonalexa.com/v2/accounts/~current/settings/Profile.email", {
+          headers: { Authorization: `Bearer ${apiAccessToken}` }
+        }),
+        axios.get("https://api.amazonalexa.com/v2/accounts/~current/settings/Profile.name",
+        { headers: { Authorization: `Bearer ${apiAccessToken}` } },
+        )
+        
+      ])
+      console.log("Test 1 Checked");
+      const email = responceArray[0].data;
+      const name = responceArray[1].data;
+      let userCart = await Cart.findOne({ email: email }).exec();
+      console.log("User Cart",userCart);
+      const dishes=userCart.items[userCart.items.length-1].dishesName
+      const drinks=userCart.items[userCart.items.length-1].drinksName
+      const dishesQuantity=userCart.items[userCart.items.length-1].dishesQuantity
+      const drinksQuantity=userCart.items[userCart.items.length-1].drinksQuantity
+      console.log(drinksQuantity);
+      console.log(drinksQuantity);
+      if (!email) {
+        return handlerInput.responseBuilder
+          .speak(script.clientInfo[0])
+          .reprompt(script.clientInfo[0])
+          .withSimpleCard('Email not Found', script.clientInfo[0])
+          .getResponse();
+      }
+      if (!name) {
+        return handlerInput.responseBuilder
+          .speak(script.clientInfo[1])
+          .reprompt(script.clientInfo[1])
+          .withSimpleCard('Name not Found', script.clientInfo[1])
+          .getResponse();
+      }
+      if (cancelOrder) {
+        const updated = await Cart.updateOne(
+          { email: email },
+          { items: [] },
+          { upsert: true }
+        ).exec().catch(e => {
+          console.log("mongo error: ", e)
+        })
+        return handlerInput.responseBuilder
+          .speak("Your order cart cancel, feel free to ask menu and order your selections")
+          .reprompt("Your order cart cancel, feel free to ask menu and order your selections")
+          .withSimpleCard("Cancel Your Order", "Your order cart cancel, feel free to ask menu and order your selections")
+          .getResponse();
+
+      }
+      console.log("Test 2 Checked");
+
+      if (email && name) {
+        console.log("Test 3 Checked");
+
+        // const orderUpdate = new OrderModel($push(Cart))
+        let speech = 'Your order cart is'
+        let cardText = ''
+        if (drinks && dishes) {
+          let orderuUpdated = await OrderModel.findOneAndUpdate(
+            { email: email },
+            {
+              email: email,
+              customerName: name,
+              $push: {
+                items: [{
+                  dishesName: dishes,
+                  dishesQuantity,
+                  drinksQuantity,
+                  drinksName: drinks,
+                }]
+              }
+            },
+            { upsert: true }).exec();
+
+          userCart.items.map((eachItem, index) => {
+
+            if (index === (userCart.items.length - 1)) { // last item
+
+              speech += `${eachItem.dishesQuantity} ${eachItem.dishesName} and ${eachItem.drinksQuantity} ${eachItem.drinksName}. `
+              cardText += `${index + 1}. ${eachItem.dishesName} x ${eachItem.dishesQuantity}\n${eachItem.drinksName} x ${eachItem.drinksQuantity} `
+
+            }
+
+          })
+        }
+
+        else if (dishes) {
+          let orderuUpdated = await OrderModel.findOneAndUpdate(
+            { email: email },
+            {
+              email: email,
+              customerName: name,
+              $push: {
+                items: [{
+                  dishesName: dishes,
+                  drinksQuantity,
+                }]
+              }
+            },
+            { upsert: true }).exec();
+
+          userCart.items.map((eachItem, index) => {
+
+            if (index === (userCart.items.length - 1)) { // last item
+
+              speech += `${eachItem.dishesQuantity} ${eachItem.dishesName}.`
+              cardText += `${index + 1}. ${eachItem.dishesName} x ${eachItem.dishesQuantity}.`
+
+            }
+
+          })
+        } else {
+          let orderuUpdated = await OrderModel.findOneAndUpdate(
+            { email: email },
+            {
+              email: email,
+              customerName: name,
+              $push: {
+                items: [{
+                  drinksName: drinks,
+                  drinksQuantity,
+                }]
+              }
+            },
+            { upsert: true }).exec();
+
+          userCart.items.map((eachItem, index) => {
+
+            if (index === (userCart.items.length - 1)) { // last item
+
+              speech += `${eachItem.drinksQuantity} ${eachItem.drinksName}.`
+              cardText += `${index + 1}. ${eachItem.drinksName} x ${eachItem.drinksQuantity}.`
+
+            }
+
+          })
+        }
+        console.log("Test 4 Checked");
+        return handlerInput.responseBuilder
+          .speak(speech + "Thank you so much for ordering.")
+          .reprompt(speech+"Thank you so much for ordering.")
+          .withSimpleCard("Your Order is", cardText)
+          .getResponse();
+      }
+    } catch (error) {
+      console.log("Checkout Error:", error);
+      return handlerInput.responseBuilder
+        .speak("DataBase Problem facing")
+        .reprompt("DataBase Problem facing")
+        .withSimpleCard("DataBase Problem facing")
+        .getResponse();
+    }
+  }
+};
+
+////////////////////////////////////////////////////////////////
 
 
 
@@ -199,24 +498,8 @@ const IntentReflectorHandler = {
   }
 };
 
+/////////////////////////////////Launch Intnet////////////////////////////
 
-const LaunchRequestHandler = {
-  canHandle(handlerInput) {
-    return Alexa.getRequestType(handlerInput.requestEnvelope) === 'LaunchRequest';
-  },
-  handle(handlerInput) {
-
-    let newUsage = new Usage({
-      skillName: 'wiki restaurant',
-      clientName: "waqar khan"
-    }).save()
-    return handlerInput.responseBuilder
-      .speak(script.launch[0])
-      .reprompt(script.launch[0])
-      .withSimpleCard("Wiki Restraurant", script.launch[1])
-      .getResponse();
-  }
-};
 const HelloWorldIntentHandler = {
   canHandle(handlerInput) {
     return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
@@ -231,6 +514,8 @@ const HelloWorldIntentHandler = {
   }
 };
 
+// ..............................Menu Intents .........................
+
 const DrinkMenuIntentHandler = {
   canHandle(handlerInput) {
     return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
@@ -241,7 +526,7 @@ const DrinkMenuIntentHandler = {
     return handlerInput.responseBuilder
       .speak(script.drinksMenu[0])
       .reprompt(script.drinksMenu[0])
-      .withSimpleCard("Wiki Restaurant (Drinks Menu)\n",script.drinksMenu[1])
+      .withSimpleCard("Wiki Restaurant (Drinks Menu)\n", script.drinksMenu[1])
       .getResponse();
   }
 };
@@ -255,7 +540,7 @@ const PastaMenuIntentHandler = {
     return handlerInput.responseBuilder
       .speak(script.pastaMenu[0])
       .reprompt(script.pastaMenu[0])
-      .withSimpleCard("Wiki Restaurant (Pasta Menu)\n",script.pastaMenu[1])
+      .withSimpleCard("Wiki Restaurant (Pasta Menu)\n", script.pastaMenu[1])
       .getResponse();
   }
 };
@@ -269,7 +554,7 @@ const FishCornerMenuIntentHandler = {
     return handlerInput.responseBuilder
       .speak(script.fishMenu[0])
       .reprompt(script.fishMenu[0])
-      .withSimpleCard("Wiki Restaurant (Fish Corner Menu)\n",script.fishMenu[1])
+      .withSimpleCard("Wiki Restaurant (Fish Corner Menu)\n", script.fishMenu[1])
       .getResponse();
   }
 };
@@ -283,7 +568,7 @@ const PakistaniBreadMenuIntentHandler = {
     return handlerInput.responseBuilder
       .speak(script.pakistaniBreadMenu[0])
       .reprompt(script.pakistaniBreadMenu[0])
-      .withSimpleCard("Wiki Restaurant (Pakistani Bread Menu)\n",script.pakistaniBreadMenu[1])
+      .withSimpleCard("Wiki Restaurant (Pakistani Bread Menu)\n", script.pakistaniBreadMenu[1])
       .getResponse();
   }
 };
@@ -297,7 +582,7 @@ const RiceCornerMenuIntentHandler = {
     return handlerInput.responseBuilder
       .speak(script.riceMenu[0])
       .reprompt(script.riceMenu[0])
-      .withSimpleCard("Wiki Restaurant (Rise Corner Menu)\n",script.riceMenu[1])
+      .withSimpleCard("Wiki Restaurant (Rise Corner Menu)\n", script.riceMenu[1])
       .getResponse();
   }
 };
@@ -311,7 +596,7 @@ const FastFoodMenuIntentHandler = {
     return handlerInput.responseBuilder
       .speak(script.fastFoodMenu[0])
       .reprompt(script.fastFoodMenu[0])
-      .withSimpleCard("Wiki Restaurant (Fast Food Menu)\n",script.fastFoodMenu[1])
+      .withSimpleCard("Wiki Restaurant (Fast Food Menu)\n", script.fastFoodMenu[1])
       .getResponse();
   }
 };
@@ -325,11 +610,12 @@ const ShowMenuIntentHandler = {
     return handlerInput.responseBuilder
       .speak(script.menuCategory[0])
       .reprompt(script.menuCategory[0])
-      .withSimpleCard("Wiki Restaurant (menu category)\n",script.menuCategory[1])
+      .withSimpleCard("Wiki Restaurant (menu category)\n", script.menuCategory[1])
       .getResponse();
   }
 };
 
+///////////////////////////////////END////////////////////////////////////////////////
 
 const userEmailHandler = {
   canHandle(handlerInput) {
@@ -404,6 +690,7 @@ const deviceIdHandler = {
 
 const skillBuilder = SkillBuilders.custom()
   .addRequestHandlers(
+    CheckoutIntentHandler,
     DrinkMenuIntentHandler,
     PastaMenuIntentHandler,
     FishCornerMenuIntentHandler,
@@ -419,8 +706,8 @@ const skillBuilder = SkillBuilders.custom()
     ShowMenuIntentHandler,
     IntentReflectorHandler,
   )
-  .addErrorHandlers(ErrorHandler)  
-  
+  .addErrorHandlers(ErrorHandler)
+
 
 
 const skill = skillBuilder.create();
