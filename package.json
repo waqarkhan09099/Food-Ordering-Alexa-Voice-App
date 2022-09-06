@@ -23,7 +23,7 @@
     "ask-sdk-model": "^1.37.1",
     "axios": "^0.24.0",
     "express": "^4.17.2",
-    "mongoose": "^6.1.6",
+    "mongoose": "^6.4.6",
     "morgan": "^1.10.0",
     "ngrok": "^4.2.2"
   }
